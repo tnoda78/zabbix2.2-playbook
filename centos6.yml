@@ -1,0 +1,44 @@
+- hosts: localhost
+  connection: local
+  sudo: yes
+  handlers:
+   - name: restart httpd
+     action: service name=httpd state=restarted
+  tasks:
+    - name: install python-selinux
+      yum: pkg=libselinux-python state=latest
+    - name: upgrade all packages
+      yum: name=* state=latest
+    - name: install remi repository
+      yum: name=http://rpms.famillecollet.com/enterprise/remi-release-6.rpm state=installed
+    - name: install Zabbix repository
+      yum: name=http://repo.zabbix.com/zabbix/2.2/rhel/6/x86_64/zabbix-release-2.2-1.el6.noarch.rpm state=installed
+    - name: install Mysql from remi repository
+      yum: name={{ item }} enablerepo=remi state=latest
+      with_items:
+        - mysql-server
+        - mysql-devel
+    - name: Start Mysql server
+      service: name=mysqld state=started enabled=yes
+    - name: install python-mysqldb
+      yum: pkg=MySQL-python
+    - name: install Zabbix 2.2
+      yum: name={{ item }} state=latest enablerepo=zabbix
+      with_items:
+        - zabbix-server
+        - zabbix-web-mysql
+        - zabbix-agent
+    - name: Create Database
+      mysql_db: name=zabbix encoding=utf8
+    - name: Create Datebase user
+      mysql_user: name=zabbix password=zabbix priv=zabbix.*:ALL state=present
+    - name: Set Zabbix server config file
+      copy: src=files/zabbix_server.conf dest=/etc/zabbix/zabbix_server.conf force=yes
+    - name: Set Zabbix Web config file
+      copy: src=files/zabbix.conf dest=/etc/httpd/conf.d/zabbix.conf force=yes
+      notify:
+      - restart httpd
+    - name: Start Zabbix server
+      service: name=zabbix-server state=started enabled=yes
+    - name: Start httpd
+      service: name=httpd state=started enabled=yes
